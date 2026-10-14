@@ -1,0 +1,36 @@
+{
+  "evaluation_date": "2026-10-12T11:29:51.825294",
+  "train_samples": 280,
+  "test_samples": 70,
+  "best_model": "LightGBM",
+  "models_comparison": {
+    "Baseline (Rata-rata Kategori)": {
+      "MAE_Rupiah": 44.38,
+      "RMSE_Rupiah": 62.97,
+      "MAPE_Percent": 3.08,
+      "Pct_Below_67_Margin": 100.0
+    },
+    "Linear Regression": {
+      "MAE_Rupiah": 33.39,
+      "RMSE_Rupiah": 49.04,
+      "MAPE_Percent": 2.23,
+      "Pct_Below_67_Margin": 58.57
+    },
+    "Random Forest": {
+      "MAE_Rupiah": 32.57,
+      "RMSE_Rupiah": 47.42,
+      "MAPE_Percent": 2.1,
+      "Pct_Below_67_Margin": 75.71
+    },
+    "LightGBM": {
+      "MAE_Rupiah": 32.53,
+      "RMSE_Rupiah": 47.08,
+      "MAPE_Percent": 2.07,
+      "Pct_Below_67_Margin": 74.29
+    }
+  },
+  "residual_quantiles": {
+    "q10_residual_markup": -0.04012432499063412,
+    "q90_residual_markup": 0.04296821910007047
+  }
+}

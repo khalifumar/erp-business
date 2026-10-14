@@ -1,0 +1,68 @@
+@import "tailwindcss";
+
+:root {
+  --background: #090d14;
+  --foreground: #f1f5f9;
+  --card: #0f1523;
+  --card-foreground: #f8fafc;
+  --card-border: #1e293b;
+  --primary: #00ccb2;
+  --primary-hover: #00b39b;
+  --primary-foreground: #02201c;
+  --header-blue: #1e40af;
+  --header-blue-light: #2563eb;
+  --text-muted: #94a3b8;
+  --text-light: #d4d4d4;
+  --border: #1e293b;
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  overflow-x: hidden;
+}
+
+/* Custom scrollbar for dark ERP theme */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090d14;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1e293b;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #334155;
+}
+
+/* Badge styles */
+.badge-waiting {
+  background-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-approved {
+  background-color: rgba(0, 204, 178, 0.15);
+  color: #00ccb2;
+  border: 1px solid rgba(0, 204, 178, 0.3);
+}
+
+.badge-rejected {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.badge-draft {
+  background-color: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+}
