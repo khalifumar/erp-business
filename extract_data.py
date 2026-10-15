@@ -80,18 +80,18 @@ if 'Paper Bag (Updated)' in wb_rtu.sheetnames:
                 "cogs": cogs_val,
                 "profit_cogs_markup": safe_float(profit_cogs, 0.67),
                 # Polos
-                "price_polos": safe_float(price_polos),
+                "price_polos": safe_float(price_polos) if safe_float(price_polos) > 0 else round(cogs_val * 1.67, 2),
                 "profit_so_polos_pct": round(safe_float(profit_so_polos, 0.4012) * 100, 2),
-                "nett_polos": safe_float(nett_polos),
+                "nett_polos": safe_float(nett_polos) if safe_float(nett_polos) > 0 else round(cogs_val / 0.7, 2),
                 # Sablon 1W1S
                 "cogs_sablon_1w1s": safe_float(cogs_sablon_1w1s, 300.0),
-                "price_sablon_1w1s": safe_float(price_sablon_1w1s),
+                "price_sablon_1w1s": safe_float(price_sablon_1w1s) if safe_float(price_sablon_1w1s) > 0 else round((cogs_val * 1.67) + 400.0, 2),
                 "profit_so_1w1s_pct": round(safe_float(profit_so_1w1s, 0.303) * 100, 2),
-                "nett_1w1s": safe_float(nett_1w1s),
+                "nett_1w1s": safe_float(nett_1w1s) if safe_float(nett_1w1s) > 0 else round((cogs_val + 300.0) / 0.75, 2),
                 # Sablon 1W2S
-                "price_sablon_1w2s": safe_float(price_sablon_1w2s),
+                "price_sablon_1w2s": safe_float(price_sablon_1w2s) if safe_float(price_sablon_1w2s) > 0 else round((cogs_val * 1.67) + 800.0, 2),
                 "profit_so_1w2s_pct": round(safe_float(profit_so_1w2s, 0.282) * 100, 2),
-                "nett_1w2s": safe_float(nett_1w2s),
+                "nett_1w2s": safe_float(nett_1w2s) if safe_float(nett_1w2s) > 0 else round((cogs_val + 600.0) / 0.75, 2),
                 "source": "Spreadsheet PRICE LIST RTU 2026"
             })
 

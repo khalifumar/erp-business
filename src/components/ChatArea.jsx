@@ -16,7 +16,10 @@ import {
   Info,
   Sliders,
   Percent,
-  FileSpreadsheet
+  FileSpreadsheet,
+  AlertTriangle,
+  AlertCircle,
+  HelpCircle
 } from 'lucide-react';
 import GeminiLogo from './GeminiLogo';
 import { calculatePriceFromMargin } from '../services/geminiService';
@@ -97,12 +100,89 @@ export default function ChatArea({
         }
 
         // Assistant Message with dynamic margin calculation
+        if (msg.data?.status && msg.data.status !== 'SUCCESS') {
+          const isOutOfContext = msg.data.status === 'OUT_OF_CONTEXT';
+          const isMultiSpec = msg.data.status === 'MULTI_SPEC';
+          const isNoMatch = msg.data.status === 'NO_MATCH';
+
+          return (
+            <div key={msg.id} className="chat-message-row assistant-row">
+              <div className="assistant-avatar">
+                <GeminiLogo size={28} />
+              </div>
+              <div className="assistant-content-wrapper">
+                <div style={{
+                  background: isOutOfContext ? 'var(--bg-card)' : (isMultiSpec ? 'rgba(234, 179, 8, 0.08)' : 'rgba(239, 68, 68, 0.08)'),
+                  border: `1.5px solid ${isOutOfContext ? 'var(--border-light)' : (isMultiSpec ? '#eab308' : '#ef4444')}`,
+                  borderRadius: 'var(--radius-md)',
+                  padding: '18px 22px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '10px',
+                  boxShadow: 'var(--shadow-sm)'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    {isOutOfContext && <HelpCircle size={24} color="#2563eb" />}
+                    {isMultiSpec && <AlertTriangle size={24} color="#eab308" />}
+                    {isNoMatch && <AlertCircle size={24} color="#ef4444" />}
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-primary)' }}>
+                      {msg.data.overview}
+                    </h3>
+                  </div>
+                  <p style={{ margin: 0, fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                    {msg.data.sub_message}
+                  </p>
+                  <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap', marginTop: '6px' }}>
+                    <button
+                      onClick={() => onOpenSpreadsheetHub()}
+                      style={{
+                        background: 'var(--bg-card-subtle)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '6px 14px',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: 'var(--text-secondary)'
+                      }}
+                    >
+                      <FileSpreadsheet size={15} />
+                      <span>Buka Katalog Database</span>
+                    </button>
+                    <button
+                      onClick={() => onOpenTemplateModal()}
+                      style={{
+                        background: 'var(--bg-card-subtle)',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: 'var(--radius-full)',
+                        padding: '6px 14px',
+                        fontSize: '0.82rem',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        color: 'var(--text-secondary)'
+                      }}
+                    >
+                      <Copy size={15} />
+                      <span>Contoh Format Prompt Sales</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        }
+
         const isCustomMarginActive = activeMargins[msg.id] !== undefined;
         const customMarginVal = activeMargins[msg.id];
-        const qty = msg.data.requested_qty || 1000;
+        const currentMargin = isCustomMarginActive ? customMarginVal : (msg.data?.target_margin || 40.12);
+        const qty = msg.data?.requested_qty || 1000;
 
         // Recalculate options dynamically or use EXACT spreadsheet numbers
-        const dynamicRecs = msg.data.recommendations?.map(rec => {
+        const dynamicRecs = msg.data?.recommendations?.map(rec => {
           if (!isCustomMarginActive) {
             // EXACT SPREADSHEET PRICE & MARGIN
             const exactPrice = rec.spreadsheet_price_list || rec.unit_price;
@@ -147,6 +227,35 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
             <div className="assistant-content-wrapper">
               {/* Overview */}
               <div className="assistant-overview">{msg.data.overview}</div>
+
+              {/* Alert Banners (Scenarios 2, 4, 7) */}
+              {msg.data?.alerts?.map((alt, aIdx) => (
+                <div key={aIdx} style={{
+                  background: alt.type === 'warning' ? 'rgba(234, 179, 8, 0.12)' : 'rgba(37, 99, 235, 0.08)',
+                  border: `1.5px solid ${alt.type === 'warning' ? '#f59e0b' : '#3b82f6'}`,
+                  borderRadius: 'var(--radius-sm)',
+                  padding: '10px 14px',
+                  marginBottom: '12px',
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '10px',
+                  fontSize: '0.84rem'
+                }}>
+                  {alt.type === 'warning' ? (
+                    <AlertTriangle size={18} color="#d97706" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  ) : (
+                    <Info size={18} color="#2563eb" style={{ flexShrink: 0, marginTop: '2px' }} />
+                  )}
+                  <div>
+                    <strong style={{ display: 'block', color: alt.type === 'warning' ? '#b45309' : '#1d4ed8', marginBottom: '2px' }}>
+                      {alt.title}
+                    </strong>
+                    <span style={{ color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                      {alt.message}
+                    </span>
+                  </div>
+                </div>
+              ))}
 
               {/* INTERACTIVE MARGIN CONTROLLER BAR */}
               <div style={{
@@ -288,6 +397,24 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                         </div>
                       </div>
 
+                      {rec.selection_rationale && (
+                        <div style={{
+                          fontSize: '0.74rem',
+                          color: '#059669',
+                          background: '#ecfdf5',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          marginBottom: '8px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '5px',
+                          border: '1px solid #a7f3d0'
+                        }}>
+                          <Check size={13} color="#059669" />
+                          <span>{rec.selection_rationale}</span>
+                        </div>
+                      )}
+
                       <div style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.4 }}>
                         {rec.why_recommended}
                       </div>
@@ -305,7 +432,7 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
               <div className="comparison-table-card">
                 <div className="table-header-title">
                   <TrendingUp size={16} color="#1a73e8" />
-                  <span>Matriks Perbandingan Harga Berdasarkan Margin {currentMargin}%</span>
+                  <span>Matriks Perbandingan Harga {isCustomMarginActive ? `(Simulasi Margin ${currentMargin}%)` : '(Harga Resmi Spreadsheet)'}</span>
                 </div>
                 <table className="pricing-table">
                   <thead>
@@ -350,7 +477,7 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                 <div className="quotation-card-header">
                   <div className="quotation-badge">
                     <MessageCircle size={18} color="#16a34a" />
-                    <span>Template Pesan WhatsApp Siap Kirim (Margin {currentMargin}%)</span>
+                    <span>Template Pesan WhatsApp Siap Kirim {isCustomMarginActive ? `(Simulasi Margin ${currentMargin}%)` : '(Harga Resmi Katalog)'}</span>
                   </div>
                   <button
                     className="copy-wa-btn"
