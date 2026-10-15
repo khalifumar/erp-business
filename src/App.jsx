@@ -132,6 +132,8 @@ export default function App() {
         onNewChat={handleNewChat}
         onOpenSettings={() => setIsSettingsModalOpen(true)}
         onOpenSpreadsheetHub={() => setIsSpreadsheetModalOpen(true)}
+        isMobileOpen={isMobileSidebarOpen}
+        onCloseMobile={() => setIsMobileSidebarOpen(false)}
       />
 
       {/* Main Content Area */}

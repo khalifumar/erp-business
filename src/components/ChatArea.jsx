@@ -168,7 +168,7 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
                   <input
                     type="range"
                     min="15"
@@ -176,9 +176,9 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                     step="0.5"
                     value={currentMargin}
                     onChange={(e) => handleUpdateMargin(msg.id, e.target.value)}
-                    style={{ flex: 1, accentColor: '#1d4ed8', cursor: 'pointer' }}
+                    style={{ flex: '1 1 200px', accentColor: '#1d4ed8', cursor: 'pointer', minWidth: '160px' }}
                   />
-                  <div style={{ display: 'flex', gap: '6px' }}>
+                  <div className="margin-presets-row" style={{ display: 'flex', gap: '6px' }}>
                     {[25, 30, 35, 40.12, 50].map((preset) => (
                       <button
                         key={preset}
