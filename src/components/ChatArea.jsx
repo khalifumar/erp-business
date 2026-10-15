@@ -97,33 +97,44 @@ export default function ChatArea({
         }
 
         // Assistant Message with dynamic margin calculation
-        const currentMargin = activeMargins[msg.id] ?? (msg.data.target_margin || 40.12);
+        const isCustomMarginActive = activeMargins[msg.id] !== undefined;
+        const customMarginVal = activeMargins[msg.id];
         const qty = msg.data.requested_qty || 1000;
 
-        // Recalculate options dynamically based on currentMargin
+        // Recalculate options dynamically or use EXACT spreadsheet numbers
         const dynamicRecs = msg.data.recommendations?.map(rec => {
+          if (!isCustomMarginActive) {
+            // EXACT SPREADSHEET PRICE & MARGIN
+            const exactPrice = rec.spreadsheet_price_list || rec.unit_price;
+            return {
+              ...rec,
+              current_unit_price: Math.round(exactPrice),
+              current_total_price: Math.round(exactPrice * qty),
+              current_margin: rec.spreadsheet_margin_pct || rec.applied_margin_pct
+            };
+          }
+          // Custom simulated margin
           const cogs = rec.cogs;
-          const dynamicPrice = calculatePriceFromMargin(cogs, currentMargin);
-          const dynamicTotal = Math.round(dynamicPrice * qty);
+          const dynamicPrice = calculatePriceFromMargin(cogs, customMarginVal);
           return {
             ...rec,
             current_unit_price: Math.round(dynamicPrice),
-            current_total_price: dynamicTotal,
-            current_margin: currentMargin
+            current_total_price: Math.round(dynamicPrice * qty),
+            current_margin: customMarginVal
           };
         });
 
         // Reconstruct WhatsApp template dynamically
         const dynamicWaTemplate = `Halo Kak, terima kasih sudah menghubungi Digipack! 😊
 
-Berikut kami rincikan penawaran harga resmi dari katalog database kami untuk kuantitas *${qty.toLocaleString('id-ID')} pcs* (Margin: ${currentMargin}%):
+Berikut kami rincikan penawaran harga resmi dari katalog database kami untuk kuantitas *${qty.toLocaleString('id-ID')} pcs*${isCustomMarginActive ? ` (Simulasi Margin: ${customMarginVal}%)` : ' (Harga Resmi Katalog)'}:
 
 ${dynamicRecs?.map((r, i) => `📌 *${i+1}. ${r.title}*
 • Produk: ${r.product_name}
 • Bahan & Ukuran: ${r.material} (${r.size})
 • Harga Jual: *Rp ${r.current_unit_price.toLocaleString('id-ID')} / pcs*
 • Total Order: *Rp ${r.current_total_price.toLocaleString('id-ID')}*
-• Ref Database: ${r.source_ref}`).join('\n\n')}
+• Margin: ${r.current_margin}% | Ref: ${r.source_ref}`).join('\n\n')}
 
 Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami siap bantu mock-up & sampel bahan ya! 🙏✨`;
 
@@ -140,7 +151,7 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
               {/* INTERACTIVE MARGIN CONTROLLER BAR */}
               <div style={{
                 background: 'var(--bg-card)',
-                border: '1px solid #93c5fd',
+                border: isCustomMarginActive ? '1.5px solid #2563eb' : '1px solid var(--border-light)',
                 borderRadius: 'var(--radius-md)',
                 padding: '14px 18px',
                 boxShadow: 'var(--shadow-sm)',
@@ -148,22 +159,22 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                 flexDirection: 'column',
                 gap: '10px'
               }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.9rem', fontWeight: 700, color: '#1d4ed8' }}>
                     <Sliders size={18} />
-                    <span>Kontrol Profit Margin Dinamis (Simulasi Harga Jual)</span>
+                    <span>Mode Harga & Simulasi Margin Profit</span>
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Margin Terpilih:</span>
+                    <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Status:</span>
                     <span style={{
-                      fontSize: '1rem',
+                      fontSize: '0.86rem',
                       fontWeight: 700,
-                      color: '#1d4ed8',
-                      background: '#dbeafe',
-                      padding: '2px 10px',
+                      color: isCustomMarginActive ? '#1d4ed8' : '#059669',
+                      background: isCustomMarginActive ? '#dbeafe' : '#d1fae5',
+                      padding: '3px 12px',
                       borderRadius: 'var(--radius-full)'
                     }}>
-                      {currentMargin}%
+                      {isCustomMarginActive ? `Simulasi Custom (${customMarginVal}%)` : '✓ 100% Harga Resmi Spreadsheet'}
                     </span>
                   </div>
                 </div>
@@ -174,27 +185,46 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
                     min="15"
                     max="65"
                     step="0.5"
-                    value={currentMargin}
+                    value={isCustomMarginActive ? customMarginVal : 40}
                     onChange={(e) => handleUpdateMargin(msg.id, e.target.value)}
                     style={{ flex: '1 1 200px', accentColor: '#1d4ed8', cursor: 'pointer', minWidth: '160px' }}
                   />
                   <div className="margin-presets-row" style={{ display: 'flex', gap: '6px' }}>
-                    {[25, 30, 35, 40.12, 50].map((preset) => (
+                    <button
+                      onClick={() => {
+                        const copy = { ...activeMargins };
+                        delete copy[msg.id];
+                        setActiveMargins(copy);
+                      }}
+                      style={{
+                        padding: '4px 12px',
+                        borderRadius: 'var(--radius-full)',
+                        border: !isCustomMarginActive ? '1.5px solid #059669' : '1px solid var(--border-light)',
+                        background: !isCustomMarginActive ? '#d1fae5' : 'var(--bg-card-subtle)',
+                        color: !isCustomMarginActive ? '#065f46' : 'var(--text-secondary)',
+                        fontSize: '0.78rem',
+                        fontWeight: !isCustomMarginActive ? 700 : 500,
+                        cursor: 'pointer'
+                      }}
+                    >
+                      Katalog Resmi
+                    </button>
+                    {[25, 30, 35, 40, 50].map((preset) => (
                       <button
                         key={preset}
                         onClick={() => handleUpdateMargin(msg.id, preset)}
                         style={{
                           padding: '4px 10px',
                           borderRadius: 'var(--radius-full)',
-                          border: currentMargin === preset ? '1.5px solid #1d4ed8' : '1px solid var(--border-light)',
-                          background: currentMargin === preset ? '#dbeafe' : 'var(--bg-card-subtle)',
-                          color: currentMargin === preset ? '#1d4ed8' : 'var(--text-secondary)',
+                          border: isCustomMarginActive && customMarginVal === preset ? '1.5px solid #1d4ed8' : '1px solid var(--border-light)',
+                          background: isCustomMarginActive && customMarginVal === preset ? '#dbeafe' : 'var(--bg-card-subtle)',
+                          color: isCustomMarginActive && customMarginVal === preset ? '#1d4ed8' : 'var(--text-secondary)',
                           fontSize: '0.78rem',
-                          fontWeight: currentMargin === preset ? 700 : 500,
+                          fontWeight: isCustomMarginActive && customMarginVal === preset ? 700 : 500,
                           cursor: 'pointer'
                         }}
                       >
-                        {preset === 40.12 ? '40.1% (Resmi)' : `${preset}%`}
+                        {preset}%
                       </button>
                     ))}
                   </div>
