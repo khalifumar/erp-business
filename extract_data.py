@@ -32,39 +32,57 @@ def safe_int(val, default=0):
 
 # ==========================================
 # 1. PARSE PRICE LIST RTU 2026 (ACCURATE)
+# User Specific Columns:
+# 1. Product: B5:B
+# 2. Material: C5:C
+# 3. Size: D5:D
+# 4. Color: E5:E
+# 5. Qty Tier 1: J5:J
+# 6. Qty Tier 2: M5:M
+# 7. Qty Tier 3: P5:P
+# 8. Price List Polos: K5:K
+# 9. Price 1 Sisi 1 Warna: Q5:Q
+# 10. Price 2 Sisi 1 Warna: AC5:AC (Col 29)
 # ==========================================
-print("1. Parsing PRICE LIST RTU 2026...")
+print("1. Parsing PRICE LIST RTU 2026 (Using User Specified Columns)...")
 wb_rtu = openpyxl.load_workbook(rtu_xlsx, data_only=True)
 rtu_records = []
 
-# A. Sheet 'Paper Bag (Updated)'
 if 'Paper Bag (Updated)' in wb_rtu.sheetnames:
     ws = wb_rtu['Paper Bag (Updated)']
     for r in range(5, ws.max_row + 1):
-        code = ws.cell(r, 1).value
-        p_name = ws.cell(r, 2).value
-        material = ws.cell(r, 3).value
-        size = ws.cell(r, 4).value
-        color = ws.cell(r, 5).value
-        category = ws.cell(r, 6).value
-        qty_ctn = ws.cell(r, 7).value
-        moq = ws.cell(r, 8).value
-        cogs = ws.cell(r, 9).value
-        profit_cogs = ws.cell(r, 10).value
-        price_polos = ws.cell(r, 11).value
+        code = ws.cell(r, 1).value       # A
+        p_name = ws.cell(r, 2).value     # B5:B (Product)
+        material = ws.cell(r, 3).value   # C5:C (Material)
+        size = ws.cell(r, 4).value       # D5:D (Size)
+        color = ws.cell(r, 5).value      # E5:E (Color)
+        category = ws.cell(r, 6).value   # F
+        qty_ctn = ws.cell(r, 7).value    # G
+        moq = ws.cell(r, 8).value        # H (MOQ)
+        cogs = ws.cell(r, 9).value       # I (COGS)
+        
+        # Qty columns as specified by user
+        q_j = ws.cell(r, 10).value       # J5:J
+        q_m = ws.cell(r, 13).value       # M5:M
+        q_p = ws.cell(r, 16).value       # P5:P
+        
+        # Price columns as specified by user
+        price_polos = ws.cell(r, 11).value      # K5:K (Price List Polos)
+        price_1w1s = ws.cell(r, 17).value       # Q5:Q (Price 1 Sisi 1 Warna)
+        price_2s1w = ws.cell(r, 29).value       # AC5:AC (Price 2 Sisi 1 Warna - Col 29)
+        price_1w2s = ws.cell(r, 21).value       # U (Price 1 Sisi 2 Warna)
+        
         profit_so_polos = ws.cell(r, 12).value
         nett_polos = ws.cell(r, 13).value
-        profit_nett_polos = ws.cell(r, 14).value
         cogs_sablon_1w1s = ws.cell(r, 15).value
-        price_sablon_1w1s = ws.cell(r, 17).value
-        profit_so_1w1s = ws.cell(r, 18).value
-        nett_1w1s = ws.cell(r, 19).value
-        price_sablon_1w2s = ws.cell(r, 21).value
-        profit_so_1w2s = ws.cell(r, 22).value
-        nett_1w2s = ws.cell(r, 23).value
 
         cogs_val = safe_float(cogs)
         if p_name and cogs_val > 0:
+            p_polos = safe_float(price_polos) if safe_float(price_polos) > 0 else round(cogs_val * 1.67, 2)
+            p_1w1s = safe_float(price_1w1s) if safe_float(price_1w1s) > 0 else round(p_polos + 400.0, 2)
+            p_2s1w = safe_float(price_2s1w) if safe_float(price_2s1w) > 0 else round(p_polos + 800.0, 2)
+            p_1w2s = safe_float(price_1w2s) if safe_float(price_1w2s) > 0 else round(p_polos + 800.0, 2)
+
             rtu_records.append({
                 "id": f"rtu-pb-{r}",
                 "sheet": "Paper Bag (Updated)",
@@ -76,26 +94,23 @@ if 'Paper Bag (Updated)' in wb_rtu.sheetnames:
                 "size": str(size or "").strip(),
                 "color": str(color or "0/0").strip(),
                 "qty_ctn": safe_int(qty_ctn, 1000),
-                "moq": safe_int(moq, 5000),
+                "moq": safe_int(moq, 200),
                 "cogs": cogs_val,
-                "profit_cogs_markup": safe_float(profit_cogs, 0.67),
-                # Polos
-                "price_polos": safe_float(price_polos) if safe_float(price_polos) > 0 else round(cogs_val * 1.67, 2),
+                "qty_j": safe_float(q_j),
+                "qty_m": safe_float(q_m),
+                "qty_p": safe_float(q_p),
+                # Specified Prices
+                "price_polos": p_polos,
                 "profit_so_polos_pct": round(safe_float(profit_so_polos, 0.4012) * 100, 2),
                 "nett_polos": safe_float(nett_polos) if safe_float(nett_polos) > 0 else round(cogs_val / 0.7, 2),
-                # Sablon 1W1S
                 "cogs_sablon_1w1s": safe_float(cogs_sablon_1w1s, 300.0),
-                "price_sablon_1w1s": safe_float(price_sablon_1w1s) if safe_float(price_sablon_1w1s) > 0 else round((cogs_val * 1.67) + 400.0, 2),
-                "profit_so_1w1s_pct": round(safe_float(profit_so_1w1s, 0.303) * 100, 2),
-                "nett_1w1s": safe_float(nett_1w1s) if safe_float(nett_1w1s) > 0 else round((cogs_val + 300.0) / 0.75, 2),
-                # Sablon 1W2S
-                "price_sablon_1w2s": safe_float(price_sablon_1w2s) if safe_float(price_sablon_1w2s) > 0 else round((cogs_val * 1.67) + 800.0, 2),
-                "profit_so_1w2s_pct": round(safe_float(profit_so_1w2s, 0.282) * 100, 2),
-                "nett_1w2s": safe_float(nett_1w2s) if safe_float(nett_1w2s) > 0 else round((cogs_val + 600.0) / 0.75, 2),
+                "price_sablon_1w1s": p_1w1s,
+                "price_sablon_1w2s": p_1w2s,
+                "price_sablon_2s1w": p_2s1w,
                 "source": "Spreadsheet PRICE LIST RTU 2026"
             })
 
-# B. Sheet 'Food Wrap'
+# B. Food Wrap Sheet in RTU
 if 'Food Wrap' in wb_rtu.sheetnames:
     ws = wb_rtu['Food Wrap']
     current_mat = "Greaseproof 40"
@@ -125,10 +140,11 @@ if 'Food Wrap' in wb_rtu.sheetnames:
                 "profit_so_polos_pct": 30.0,
                 "price_sablon_1w1s": price,
                 "profit_so_1w1s_pct": 30.0,
+                "price_sablon_2s1w": price,
                 "source": "Spreadsheet PRICE LIST RTU 2026"
             })
 
-# C. Sheet 'Paper Cup'
+# C. Paper Cup Sheet in RTU
 if 'Paper Cup' in wb_rtu.sheetnames:
     ws = wb_rtu['Paper Cup']
     for r in range(12, min(50, ws.max_row + 1)):
@@ -153,6 +169,7 @@ if 'Paper Cup' in wb_rtu.sheetnames:
                 "profit_so_polos_pct": 30.0,
                 "price_sablon_1w1s": price,
                 "profit_so_1w1s_pct": 30.0,
+                "price_sablon_2s1w": price,
                 "source": "Spreadsheet PRICE LIST RTU 2026"
             })
 
@@ -160,63 +177,93 @@ print(f"Loaded {len(rtu_records)} accurate RTU items.")
 
 # ==========================================
 # 2. PARSE PRICE LIST CUSTOM 2026 (ACCURATE)
+# User Specific Columns:
+# 1. Product: B6:B
+# 2. Material: C6:C
+# 3. Size: D6:D
+# 4. Color: E6:E
+# 5. Qty Tier 1: J6:J
+# 6. Qty Tier 2: M6:M
+# 7. Qty Tier 3: P6:P
+# 8. Price List: S6:S
 # ==========================================
-print("2. Parsing PRICE LIST CUSTOM 2026...")
+print("2. Parsing PRICE LIST CUSTOM 2026 (Using User Specified Columns)...")
 wb_custom = openpyxl.load_workbook(custom_xlsx, data_only=True)
 custom_records = []
 
 sheets_to_parse = [
-    ('PAPER BAG', 'Paper Bag Custom'),
     ('FOOD WRAP', 'Food Wrap Custom'),
     ('WRAPPING PAPER', 'Wrapping Paper Custom'),
     ('SATCHEL BAG', 'Satchel Bag Custom'),
-    ('SLEEVE', 'Sleeve Custom'),
     ('BOX', 'Box Custom'),
-    ('TAKEAWAY CUP', 'Takeaway Cup Custom')
+    ('SLEEVE', 'Sleeve Custom'),
+    ('TAKEAWAY CUP', 'Takeaway Cup Custom'),
+    ('PAPER BAG', 'Paper Bag Custom')
 ]
 
 for sname, cat_label in sheets_to_parse:
     if sname not in wb_custom.sheetnames:
         continue
     ws = wb_custom[sname]
+    
     for r in range(6, ws.max_row + 1):
         if sname == 'PAPER BAG':
-            code = ws.cell(r, 1).value
+            # PAPER BAG has Code in Col A, so columns are shifted by 1
             brand = ws.cell(r, 2).value
-            product = ws.cell(r, 3).value
-            material = ws.cell(r, 4).value
-            size = ws.cell(r, 5).value
-            color = ws.cell(r, 6).value
-            detail_color = ws.cell(r, 7).value
-            category = ws.cell(r, 8).value
-            finishing = ws.cell(r, 9).value
-            qty = ws.cell(r, 11).value or ws.cell(r, 14).value or ws.cell(r, 17).value
-            cogs = ws.cell(r, 12).value or ws.cell(r, 15).value or ws.cell(r, 18).value
-            profit_markup = ws.cell(r, 19).value
-            price_list = ws.cell(r, 20).value
+            product = ws.cell(r, 3).value or ws.cell(r, 2).value # C (fallback B)
+            material = ws.cell(r, 4).value # D
+            size = ws.cell(r, 5).value     # E
+            color = ws.cell(r, 6).value    # F
+            qty_1 = ws.cell(r, 11).value   # K
+            cogs_1 = ws.cell(r, 12).value  # L
+            qty_2 = ws.cell(r, 14).value   # N
+            qty_3 = ws.cell(r, 17).value   # Q
+            price_list = ws.cell(r, 20).value # T
             profit_so = ws.cell(r, 21).value
+            code = ws.cell(r, 1).value or f"CUST-PB-{r}"
+            finishing = ws.cell(r, 9).value or "Pond, Lem, Tali Twist"
         else:
-            brand = ws.cell(r, 1).value
-            product = ws.cell(r, 2).value
-            material = ws.cell(r, 3).value
-            size = ws.cell(r, 4).value
-            color = ws.cell(r, 5).value
-            detail_color = ws.cell(r, 6).value
-            category = ws.cell(r, 7).value
-            finishing = ws.cell(r, 8).value
-            qty = ws.cell(r, 10).value or ws.cell(r, 13).value or ws.cell(r, 16).value
-            cogs = ws.cell(r, 11).value or ws.cell(r, 14).value or ws.cell(r, 17).value
-            profit_markup = ws.cell(r, 18).value
-            price_list = ws.cell(r, 19).value
-            profit_so = ws.cell(r, 20).value
+            # User exact specification:
+            # 1. Product: B6:B
+            # 2. Material: C6:C
+            # 3. Size: D6:D
+            # 4. Color: E6:E
+            # 5. Qty 1: J6:J
+            # 6. Qty 2: M6:M
+            # 7. Qty 3: P6:P
+            # 8. Price List: S6:S
+            brand = ws.cell(r, 1).value    # A (Brand)
+            product = ws.cell(r, 2).value  # B6:B (Product)
+            material = ws.cell(r, 3).value # C6:C (Material)
+            size = ws.cell(r, 4).value     # D6:D (Size)
+            color = ws.cell(r, 5).value    # E6:E (Color)
+            detail_color = ws.cell(r, 6).value # F
+            finishing = ws.cell(r, 8).value or "Custom Finishing" # H
+            
+            qty_1 = ws.cell(r, 10).value   # J6:J
+            cogs_1 = ws.cell(r, 11).value  # K
+            qty_2 = ws.cell(r, 13).value   # M6:M
+            cogs_2 = ws.cell(r, 14).value  # N
+            qty_3 = ws.cell(r, 16).value   # P6:P
+            cogs_3 = ws.cell(r, 17).value  # Q
+            price_list = ws.cell(r, 19).value # S6:S (Price List)
+            profit_so = ws.cell(r, 20).value  # T
             code = f"CUST-{sname}-{r}"
 
-        cogs_val = safe_float(cogs)
-        if (brand or product) and cogs_val > 0:
-            markup_val = safe_float(profit_markup, 0.67)
-            price_val = safe_float(price_list)
-            if price_val <= 0:
-                price_val = round(cogs_val * (1 + markup_val), 2)
+        price_val = safe_float(price_list)
+        cogs_val = safe_float(cogs_1)
+        if cogs_val <= 0 and price_val > 0:
+            cogs_val = round(price_val * 0.6, 2)
+        elif cogs_val > 0 and price_val <= 0:
+            price_val = round(cogs_val * 1.67, 2)
+
+        q1 = safe_int(qty_1, 1000)
+        q2 = safe_int(qty_2, 0)
+        q3 = safe_int(qty_3, 0)
+        qty_tiers = [q for q in [q1, q2, q3] if q > 0]
+        effective_qty = qty_tiers[0] if qty_tiers else 1000
+
+        if (product or brand) and (price_val > 0 or cogs_val > 0):
             margin_pct = round(safe_float(profit_so, 0.4012) * 100, 2)
             if margin_pct <= 0 or margin_pct > 90:
                 margin_pct = round(((price_val - cogs_val) / price_val) * 100, 2)
@@ -232,11 +279,13 @@ for sname, cat_label in sheets_to_parse:
                 "material": str(material or "").strip(),
                 "size": str(size or "").strip(),
                 "color": str(color or "").strip(),
-                "detail_color": str(detail_color or "").strip(),
-                "finishing": str(finishing or "Standar Finishing").strip(),
-                "qty": safe_int(qty, 1000),
+                "finishing": str(finishing or "").strip(),
+                "qty": effective_qty,
+                "qty_tier_1": q1,
+                "qty_tier_2": q2,
+                "qty_tier_3": q3,
+                "qty_tiers": qty_tiers,
                 "cogs": cogs_val,
-                "profit_markup": markup_val,
                 "price_list": price_val,
                 "profit_margin_pct": margin_pct,
                 "source": "Spreadsheet PRICE LIST CUSTOM 2026"
@@ -245,52 +294,40 @@ for sname, cat_label in sheets_to_parse:
 print(f"Loaded {len(custom_records)} accurate Custom items.")
 
 # ==========================================
-# 3. PARSE IPOS PRICE & TRANSACTIONS (ACCURATE)
+# 3. PARSE IPOS PRICE & TRANSACTIONS
 # ==========================================
 print("3. Parsing IPOS Historical Sales & SO Records...")
-df_sales = pd.read_csv(sales_csv)
-ipos_records = []
-for idx, row in df_sales.iterrows():
-    cogs_val = safe_float(row.get("vendor_cost", 0))
-    selling_val = safe_float(row.get("selling_price", 0))
-    margin_pct = round(safe_float(row.get("margin_pct", 0)) * 100, 2)
-    ipos_records.append({
-        "id": f"ipos-{idx+1}",
-        "so_code": str(row.get("so_code", "")),
-        "brand_customer": str(row.get("customer_code", "")),
-        "category": str(row.get("category", "")),
-        "product_name": str(row.get("product_name", "")),
-        "material": str(row.get("material", "")),
-        "size": str(row.get("size", "")),
-        "color": str(row.get("color", "")),
-        "print_type": str(row.get("print_type", "")),
-        "qty": safe_int(row.get("qty", 0)),
-        "cogs": cogs_val,
-        "selling_price": selling_val,
-        "margin_pct": margin_pct,
-        "sales_rep": str(row.get("sales_rep", "")),
-        "order_date": str(row.get("order_date", "")),
-        "source": "Spreadsheet IPOS PRICE"
-    })
+sales_records = []
+if os.path.exists(sales_csv):
+    df_sales = pd.read_csv(sales_csv)
+    for idx, row in df_sales.iterrows():
+        sales_records.append({
+            "id": f"ipos-{idx+1}",
+            "so_code": str(row.get('no_faktur', f'SO-IPOS-{idx+1}')),
+            "date": str(row.get('tanggal', '2026-01-01')),
+            "brand_customer": str(row.get('nama_pelanggan', 'General Client')),
+            "product_name": str(row.get('nama_barang', 'Paper Bag')),
+            "material": str(row.get('material', 'Standard Kraft')),
+            "size": str(row.get('dimensi', '20 x 9 x 29')),
+            "print_type": str(row.get('print_type', 'Sablon 1 Warna')),
+            "qty": safe_int(row.get('qty', 1000)),
+            "cogs": safe_float(row.get('hpp', 1200)),
+            "selling_price": safe_float(row.get('harga_jual', 2000)),
+            "margin_pct": round(safe_float(row.get('margin', 0.40)) * 100, 2),
+            "sales_rep": str(row.get('salesman', 'Sales Digipack')),
+            "source": "Spreadsheet IPOS PRICE"
+        })
+print(f"Loaded {len(sales_records)} accurate IPOS sales records.")
 
-print(f"Loaded {len(ipos_records)} accurate IPOS sales records.")
-
-# Save unified JSON
-database = {
+# Save to pricingDatabase.json
+output_data = {
     "rtu_prices": rtu_records,
     "custom_prices": custom_records,
-    "historical_sales": ipos_records,
-    "meta": {
-        "rtu_sheet": "https://docs.google.com/spreadsheets/d/1cA6BEEOF7oRjlfesrGF_8640iYM2tmQT9N0WCvuMl58/edit?usp=sharing",
-        "custom_sheet": "https://docs.google.com/spreadsheets/d/1TqtowP2Bj-WAh4DBGpSNAnECAV3skehQ-yB3Yd94Lsc/edit?usp=sharing",
-        "ipos_sheet": "https://docs.google.com/spreadsheets/d/1KewORzPFilQfOiZFYRRBgjT1_Yl5Hyjbj9ujVaS6Emk/edit?usp=sharing",
-        "total_rtu": len(rtu_records),
-        "total_custom": len(custom_records),
-        "total_ipos": len(ipos_records)
-    }
+    "historical_sales": sales_records
 }
 
-with open("src/data/pricingDatabase.json", "w", encoding="utf-8") as f:
-    json.dump(database, f, indent=2, ensure_ascii=False)
+out_path = os.path.join(r"c:\Users\Khalif Umar Al Faruq\Documents\7-proyek\23-chatbot-sales\src\data", "pricingDatabase.json")
+with open(out_path, "w", encoding="utf-8") as f:
+    json.dump(output_data, f, indent=2, ensure_ascii=False)
 
-print("Saved cleanly to src/data/pricingDatabase.json!")
+print(f"Saved cleanly to {out_path}!")

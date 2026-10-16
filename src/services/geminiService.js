@@ -485,10 +485,10 @@ export async function generateSalesResponse(userQuery, settings = {}) {
     const calc1w1s = calculatePriceFromMargin(cogs1w1s, effectiveMargin);
     const price2 = effectiveMargin === 30.35 ? stdPrice1w1s : calc1w1s;
 
-    const cogs1w2s = rtuBest.cogs + ((rtuBest.cogs_sablon_1w1s || 300) * 1.8);
-    const stdPrice1w2s = rtuBest.price_sablon_1w2s || (cogs1w2s * 1.4);
-    const calc1w2s = calculatePriceFromMargin(cogs1w2s, effectiveMargin);
-    const price3 = effectiveMargin === 28.25 ? stdPrice1w2s : calc1w2s;
+    const cogs2s1w = rtuBest.cogs + ((rtuBest.cogs_sablon_1w1s || 300) * 1.8);
+    const stdPrice2s1w = rtuBest.price_sablon_2s1w || rtuBest.price_sablon_1w2s || (cogs2s1w * 1.4);
+    const calc2s1w = calculatePriceFromMargin(cogs2s1w, effectiveMargin);
+    const price3 = effectiveMargin === 28.25 ? stdPrice2s1w : calc2s1w;
 
     rec1 = {
       title: wantsSablon ? "Rekomendasi 1: RTU Sablon 1 Sisi 1 Warna (Resmi Spreadsheet)" : "Rekomendasi 1: RTU Polos (Resmi Spreadsheet RTU)",
@@ -535,25 +535,25 @@ export async function generateSalesResponse(userQuery, settings = {}) {
     };
 
     rec3 = {
-      title: "Rekomendasi 3: RTU Sablon 1 Sisi 2 Warna (Cetak Dua Warna)",
-      tag: "Sablon 2 Warna",
-      product_name: `${rtuBest.product_name} + Sablon 1W2S`,
+      title: "Rekomendasi 3: RTU Sablon 2 Sisi 1 Warna (Resmi Kolom AC)",
+      tag: "Sablon 2S 1W (Kolom AC)",
+      product_name: `${rtuBest.product_name} + Sablon 2 Sisi 1 Warna`,
       material: rtuBest.material,
       size: rtuBest.size,
-      print_type: "Sablon 1W2S (2 Warna)",
+      print_type: "Sablon 2 Sisi 1 Warna (2S1W)",
       qty: qty,
       moq: rtuBest.moq,
-      cogs: cogs1w2s,
+      cogs: cogs2s1w,
       unit_price: Math.round(price3),
       unit_price_raw: price3,
-      spreadsheet_price_list: stdPrice1w2s,
-      spreadsheet_margin_pct: rtuBest.profit_so_1w2s_pct,
+      spreadsheet_price_list: stdPrice2s1w,
+      spreadsheet_margin_pct: 28.25,
       applied_margin_pct: effectiveMargin,
       total_price: Math.round(price3 * qty),
       source_sheet: "Spreadsheet PRICE LIST RTU 2026",
-      source_ref: `Sheet '${rtuBest.sheet}', Baris ${rtuBest.row_number} (Harga List: Rp ${stdPrice1w2s.toLocaleString('id-ID')})`,
-      selection_rationale: "Opsi cetak premium 2 warna tertera di kolom 21 spreadsheet RTU.",
-      why_recommended: `Opsi cetak 2 warna dengan kontras maksimal sesuai standar kolom 'Price 1 Sisi 2 Warna' di spreadsheet RTU.`
+      source_ref: `Sheet '${rtuBest.sheet}', Baris ${rtuBest.row_number} (Kolom AC5:AC: Rp ${Math.round(stdPrice2s1w).toLocaleString('id-ID')})`,
+      selection_rationale: "Opsi cetak 2 Sisi 1 Warna resmi dari Kolom AC5:AC spreadsheet RTU.",
+      why_recommended: `Data harga resmi dari kolom AC5:AC (Price 2 Sisi 1 Warna) spreadsheet RTU. Memberikan opsi branding maksimal di kedua sisi depan dan belakang.`
     };
 
   } else {
