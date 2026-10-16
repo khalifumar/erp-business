@@ -1,5 +1,6 @@
 // src/components/HeroState.jsx
 import React, { useState } from 'react';
+import CategorySlider from './CategorySlider';
 import {
   Plus,
   Mic,
@@ -19,7 +20,9 @@ export default function HeroState({
   onOpenModelSelector,
   activeMode,
   setActiveMode,
-  onOpenSpreadsheetHub
+  onOpenSpreadsheetHub,
+  selectedCategory,
+  onSelectCategory
 }) {
   const [isListening, setIsListening] = useState(false);
 
@@ -90,6 +93,11 @@ export default function HeroState({
 
       {/* Let's go pill badge */}
       <div className="lets-go-pill">Let's go</div>
+
+      {/* Database Category Slidebar */}
+      <div style={{ width: '100%', maxWidth: '740px', marginBottom: '14px' }}>
+        <CategorySlider activeCategory={selectedCategory} onChangeCategory={onSelectCategory} />
+      </div>
 
       {/* Pill Input Container */}
       <div className="gemini-pill-wrapper">

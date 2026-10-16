@@ -1325,3 +1325,244 @@ body {
     padding: 10px 14px;
   }
 }
+
+/* ========================================================
+   CATEGORY SLIDEBAR STYLES (RTU vs CUSTOM SWITCHER)
+   ======================================================== */
+.category-slider-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-md);
+  padding: 12px 16px;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.category-slider-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.slider-label {
+  font-size: 0.84rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.active-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+}
+
+.active-badge.badge-rtu {
+  background: rgba(5, 150, 105, 0.12);
+  color: #059669;
+  border: 1px solid rgba(5, 150, 105, 0.3);
+}
+
+.active-badge.badge-custom {
+  background: rgba(124, 58, 237, 0.12);
+  color: #7c3aed;
+  border: 1px solid rgba(124, 58, 237, 0.3);
+}
+
+.category-slidebar-track {
+  position: relative;
+  display: flex;
+  background: var(--bg-app);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  padding: 4px;
+  min-height: 48px;
+}
+
+.slidebar-glider {
+  position: absolute;
+  top: 4px;
+  bottom: 4px;
+  border-radius: var(--radius-full);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  box-shadow: var(--shadow-sm);
+}
+
+.slidebar-glider.slide-left {
+  left: 4px;
+  width: calc(50% - 6px);
+  background: #d1fae5;
+  border: 1.5px solid #059669;
+}
+
+[data-theme="dark"] .slidebar-glider.slide-left {
+  background: rgba(5, 150, 105, 0.25);
+  border-color: #10b981;
+}
+
+.slidebar-glider.slide-right {
+  left: calc(50% + 2px);
+  width: calc(50% - 6px);
+  background: #ede9fe;
+  border: 1.5px solid #7c3aed;
+}
+
+[data-theme="dark"] .slidebar-glider.slide-right {
+  background: rgba(124, 58, 237, 0.25);
+  border-color: #a78bfa;
+}
+
+.slidebar-tab {
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.tab-icon-box {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tab-icon-box.rtu-box {
+  background: rgba(5, 150, 105, 0.15);
+  color: #059669;
+}
+
+.tab-icon-box.custom-box {
+  background: rgba(124, 58, 237, 0.15);
+  color: #7c3aed;
+}
+
+.tab-text-box {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+}
+
+.tab-name {
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.tab-desc {
+  font-size: 0.72rem;
+  color: var(--text-tertiary);
+}
+
+.slidebar-tab.is-active .tab-name {
+  color: #0f172a;
+}
+
+[data-theme="dark"] .slidebar-tab.is-active .tab-name {
+  color: #ffffff;
+}
+
+/* Compact Header Slidebar */
+.header-slidebar-wrapper {
+  display: flex;
+  align-items: center;
+  margin: 0 10px;
+}
+
+.category-slider-compact {
+  position: relative;
+  display: flex;
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-full);
+  padding: 2px;
+  height: 34px;
+  width: 200px;
+}
+
+.slider-pill-indicator {
+  position: absolute;
+  top: 2px;
+  bottom: 2px;
+  border-radius: var(--radius-full);
+  transition: all 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.slider-pill-indicator.pos-rtu {
+  left: 2px;
+  width: calc(50% - 3px);
+  background: #d1fae5;
+  border: 1px solid #059669;
+}
+
+[data-theme="dark"] .slider-pill-indicator.pos-rtu {
+  background: rgba(5, 150, 105, 0.3);
+  border-color: #10b981;
+}
+
+.slider-pill-indicator.pos-custom {
+  left: calc(50% + 1px);
+  width: calc(50% - 3px);
+  background: #ede9fe;
+  border: 1px solid #7c3aed;
+}
+
+[data-theme="dark"] .slider-pill-indicator.pos-custom {
+  background: rgba(124, 58, 237, 0.3);
+  border-color: #a78bfa;
+}
+
+.slider-compact-btn {
+  flex: 1;
+  position: relative;
+  z-index: 2;
+  background: transparent;
+  border: none;
+  font-size: 0.76rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  cursor: pointer;
+  border-radius: var(--radius-full);
+}
+
+.slider-compact-btn.active {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+
+@media (max-width: 768px) {
+  .header-slidebar-wrapper {
+    display: none;
+  }
+  .category-slidebar-track {
+    min-height: 44px;
+  }
+  .tab-desc {
+    display: none;
+  }
+}

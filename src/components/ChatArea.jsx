@@ -22,6 +22,7 @@ import {
   HelpCircle
 } from 'lucide-react';
 import GeminiLogo from './GeminiLogo';
+import CategorySlider from './CategorySlider';
 import { calculatePriceFromMargin } from '../services/geminiService';
 
 export default function ChatArea({
@@ -35,7 +36,9 @@ export default function ChatArea({
   onOpenSpreadsheetHub,
   onOpenTemplateModal,
   globalMargin,
-  onMarginChange
+  onMarginChange,
+  selectedCategory,
+  onSelectCategory
 }) {
   const [copiedId, setCopiedId] = useState(null);
   const [isListening, setIsListening] = useState(false);
@@ -541,6 +544,11 @@ Kira-kira dari opsi di atas mana yang paling cocok dengan kebutuhan Kakak? Kami 
       )}
 
       <div ref={messagesEndRef} />
+
+      {/* Database Category Slidebar */}
+      <div style={{ width: '100%', maxWidth: '820px', margin: '0 auto 10px auto' }}>
+        <CategorySlider activeCategory={selectedCategory} onChangeCategory={onSelectCategory} />
+      </div>
 
       {/* Sticky Bottom Pill Input for ongoing conversation */}
       <div className="active-chat-input-bar">

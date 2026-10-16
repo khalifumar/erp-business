@@ -1,5 +1,6 @@
 // src/components/Header.jsx
 import React from 'react';
+import CategorySlider from './CategorySlider';
 import {
   Download,
   Edit3,
@@ -17,7 +18,9 @@ export default function Header({
   onOpenSpreadsheetHub,
   onOpenTemplateModal,
   onNewChat,
-  onToggleMobileSidebar
+  onToggleMobileSidebar,
+  selectedCategory,
+  onSelectCategory
 }) {
   return (
     <header className="top-nav">
@@ -39,6 +42,9 @@ export default function Header({
         </div>
       </div>
 
+      <div className="header-slidebar-wrapper">
+        <CategorySlider activeCategory={selectedCategory} onChangeCategory={onSelectCategory} compact={true} />
+      </div>
       <div className="top-nav-right">
         {/* Template AI Button */}
         <button

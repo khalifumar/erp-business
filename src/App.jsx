@@ -38,6 +38,14 @@ export default function App() {
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
 
+  // Spreadsheet Category Selection: 'RTU' | 'CUSTOM'
+  const [selectedCategory, setSelectedCategory] = useState(() => localStorage.getItem('gemini_sales_category') || 'RTU');
+
+  const handleSelectCategory = (cat) => {
+    setSelectedCategory(cat);
+    localStorage.setItem('gemini_sales_category', cat);
+  };
+
   // Conversations history matching screenshot
   const [chatHistory, setChatHistory] = useState([
     { id: 'c-1', title: "Pesan dan Ibrah Surat Al-Waqi'ah" },
@@ -106,7 +114,7 @@ export default function App() {
     }
 
     try {
-      const assistantData = await generateSalesResponse(text, settings);
+      const assistantData = await generateSalesResponse(text, { ...settings, categoryMode: selectedCategory });
       const assistantMsg = {
         id: 'msg-' + (Date.now() + 1),
         role: 'assistant',
@@ -145,6 +153,8 @@ export default function App() {
           onOpenTemplateModal={() => setIsTemplateModalOpen(true)}
           onNewChat={handleNewChat}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+          selectedCategory={selectedCategory}
+          onSelectCategory={handleSelectCategory}
         />
 
         {messages.length === 0 ? (
@@ -157,6 +167,8 @@ export default function App() {
             activeMode={activeMode}
             setActiveMode={setActiveMode}
             onOpenSpreadsheetHub={() => setIsSpreadsheetModalOpen(true)}
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleSelectCategory}
           />
         ) : (
           <ChatArea
@@ -171,6 +183,8 @@ export default function App() {
             onOpenTemplateModal={() => setIsTemplateModalOpen(true)}
             globalMargin={settings.targetMargin}
             onMarginChange={(m) => handleSaveSettings({ ...settings, targetMargin: m })}
+            selectedCategory={selectedCategory}
+            onSelectCategory={handleSelectCategory}
           />
         )}
       </main>

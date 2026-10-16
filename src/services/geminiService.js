@@ -33,7 +33,7 @@ function parseDimensions(s) {
 }
 
 /**
- * Calculates Euclidean distance between two dimension tuples
+ * Calculates Euclidean 3D distance between two dimension tuples
  */
 function dimensionDistance(dimsA, dimsB) {
   if (dimsA.length === 0 || dimsB.length === 0) return 999;
@@ -56,7 +56,7 @@ export function validatePromptConstraints(query) {
   const raw = (query || '').trim();
   const q = raw.toLowerCase();
 
-  // SCENARIO 1: Out-of-Context Check (Very short or zero packaging keywords)
+  // SCENARIO 1: Out-of-Context Check
   if (raw.length < 3) {
     return {
       isValid: false,
@@ -69,7 +69,6 @@ export function validatePromptConstraints(query) {
   const hasCoreEntity = PACKAGING_CORE_ENTITIES.some(kw => q.includes(kw));
   const hasDimensions = /\d+\s*x\s*\d+/i.test(q);
 
-  // If query doesn't mention any packaging entity AND doesn't have dimensions (e.g. "A", "tes", "laptop", "kucing")
   if (!hasCoreEntity && !hasDimensions) {
     return {
       isValid: false,
@@ -80,7 +79,6 @@ export function validatePromptConstraints(query) {
   }
 
   // SCENARIO 5: Multiple Specifications Collision
-  // A. Check for multiple distinct product categories
   const categoriesFound = [];
   if (q.includes('paper bag') || q.includes('satchel') || q.includes('sos bag')) categoriesFound.push('Paper Bag');
   if (q.includes('food wrap') || q.includes('wrapping paper') || q.includes('kertas roti')) categoriesFound.push('Food Wrap');
@@ -97,8 +95,6 @@ export function validatePromptConstraints(query) {
     };
   }
 
-  // B. Check for multiple distinct dimension specifications
-  // Matches e.g. "30 x 10 x 40" and "20 x 9 x 29"
   const dimensionMatches = q.match(/\d+(?:[.,]\d+)?\s*x\s*\d+(?:[.,]\d+)?(?:\s*x\s*\d+(?:[.,]\d+)?)?/g) || [];
   const uniqueSizes = [...new Set(dimensionMatches.map(s => normalizeSize(s)))];
 
@@ -115,9 +111,14 @@ export function validatePromptConstraints(query) {
 }
 
 /**
- * High-Precision Retrieval Engine with Scenario 2, 4, 6, & 7 Handlers
+ * 4-TIER HIERARCHICAL PRIORITY SEARCH ENGINE
+ * 1. Product (Weight: 1000)
+ * 2. Material (Weight: 500)
+ * 3. Size (Weight: 250)
+ * 4. Quantity (Weight: 100)
+ * With strict Database Category Filtering ('RTU' vs 'CUSTOM')
  */
-export function searchPricingKnowledge(query, customTargetMargin = null) {
+export function searchPricingKnowledge(query, customTargetMargin = null, categoryMode = 'RTU') {
   const q = query.toLowerCase();
   const alerts = [];
   const specNotes = [];
@@ -154,7 +155,7 @@ export function searchPricingKnowledge(query, customTargetMargin = null) {
     }
   }
 
-  // 2. Extract Margin request (Worst Case Guardrail: Clamp between 5% and 75%)
+  // 2. Extract Margin request (Worst Case Guardrail)
   let queryMargin = customTargetMargin;
   const marginMatch = q.match(/margin\s*[:=]?\s*(-?\d+(?:\.\d+)?)\s*%/i) || q.match(/margin\s*(-?\d{1,2})/i);
   if (marginMatch) {
@@ -171,11 +172,27 @@ export function searchPricingKnowledge(query, customTargetMargin = null) {
     }
   }
 
-  // 3. Extract Handle Preference (Strict differentiation)
+  // 3. PRIORITY 1: Identify Product Target
   const isNonHandleExplicit = q.includes('non handle') || q.includes('tanpa handle') || q.includes('non-handle') || q.includes('tanpa tali') || q.includes('sos bag');
   const isHandleExplicit = (q.includes('handle') || q.includes('tali') || q.includes('with handle')) && !isNonHandleExplicit;
 
-  // 4. Extract Size & Dimensions (Worst Case 2D vs 3D)
+  let targetProductType = 'general';
+  if (isHandleExplicit) targetProductType = 'paper_bag_handle';
+  else if (isNonHandleExplicit) targetProductType = 'paper_bag_non_handle';
+  else if (q.includes('food wrap') || q.includes('wrapping paper') || q.includes('kertas roti') || q.includes('kertas burger')) targetProductType = 'food_wrap';
+  else if (q.includes('paper cup') || q.includes('takeaway cup') || (q.includes('cup') && !q.includes('paper bag'))) targetProductType = 'paper_cup';
+  else if (q.includes('satchel envelope') || q.includes('amplop')) targetProductType = 'satchel_envelope';
+  else if (q.includes('satchel')) targetProductType = 'satchel_bag';
+  else if (q.includes('box') || q.includes('dus') || q.includes('kotak')) targetProductType = 'box';
+  else if (q.includes('paper bag') || q.includes('kantong')) targetProductType = 'paper_bag';
+
+  // 4. PRIORITY 2: Identify Material Target
+  const materialKeywords = ['greaseproof', 'white kraft', 'brown kraft', 'kraft', 'hvs', 'ivory', 'duplex'];
+  let requestedMaterial = materialKeywords.find(m => q.includes(m)) || '';
+  const gsmMatch = q.match(/\b(40|50|70|80|120|125|150|210|250|300)\s*(?:gsm)?\b/);
+  const requestedGsm = gsmMatch ? gsmMatch[1] : '';
+
+  // 5. PRIORITY 3: Identify Size Target
   const sizeMatch = q.match(/(\d+(?:[.,]\d+)?)\s*x\s*(\d+(?:[.,]\d+)?)(?:\s*x\s*(\d+(?:[.,]\d+)?))?/);
   let searchSizeNorm = sizeMatch ? normalizeSize(sizeMatch[0]) : '';
   const searchDims = sizeMatch ? parseDimensions(sizeMatch[0]) : [];
@@ -184,171 +201,153 @@ export function searchPricingKnowledge(query, customTargetMargin = null) {
     alerts.push({
       type: 'info',
       title: 'Spesifikasi Dimensi Dilengkapi',
-      message: `Dimensi input terdeteksi 2 ukuran (${searchDims[0]} x ${searchDims[1]}). Sistem secara otomatis melengkapinya dengan lebar samping (gusset) standar katalog terdekat.`
+      message: `Dimensi input terdeteksi 2 ukuran (${searchDims[0]} x ${searchDims[1]}). Sistem melengkapinya dengan lebar samping (gusset) standar katalog terdekat.`
     });
   }
 
-  // 5. Extract Material Preference
-  const materialKeywords = ['greaseproof', 'white kraft', 'brown kraft', 'kraft', 'hvs', 'ivory', 'duplex'];
-  let requestedMaterial = materialKeywords.find(m => q.includes(m)) || '';
-  const gsmMatch = q.match(/\b(40|50|70|80|120|125|150|210|250|300)\s*(?:gsm)?\b/);
-  const requestedGsm = gsmMatch ? gsmMatch[1] : '';
-
-  // 6. SCORE RTU PRICES
-  const scoredRtu = db.rtu_prices.map(item => {
-    let score = 0;
+  // HIERARCHICAL PRIORITY SCORER
+  function scoreItemWithPriority(item) {
+    const itemPName = (item.product_name || '').toLowerCase();
+    const itemCat = (item.category || '').toLowerCase();
+    const itemMat = (item.material || '').toLowerCase();
+    const itemBrand = (item.brand || '').toLowerCase();
     const itemSizeNorm = normalizeSize(item.size);
     const itemDims = parseDimensions(item.size);
-    const itemPName = (item.product_name || '').toLowerCase();
-    const itemMat = (item.material || '').toLowerCase();
-    const isItemHandle = (itemPName.includes('handle') || item.category.toLowerCase().includes('handle')) &&
+    const isItemHandle = (itemPName.includes('handle') || itemCat.includes('handle')) &&
                          !itemPName.includes('non handle') && !itemPName.includes('non-handle');
     const isItemNonHandle = itemPName.includes('non handle') || itemPName.includes('non-handle') || itemPName.includes('sos bag');
 
-    // A. Handle / Non-Handle Matching (Crucial Fix!)
-    if (isHandleExplicit) {
-      if (isItemHandle) score += 60;
-      if (isItemNonHandle) score -= 80; // Heavy penalty
-    } else if (isNonHandleExplicit) {
-      if (isItemNonHandle) score += 60;
-      if (isItemHandle) score -= 80;
+    // --- 1. PRODUCT (PRIORITY 1 - WEIGHT: 1000) ---
+    let p1 = 0;
+    if (targetProductType === 'paper_bag_handle') {
+      if (isItemHandle) p1 = 1000;
+      else if (isItemNonHandle) p1 = -800;
+    } else if (targetProductType === 'paper_bag_non_handle') {
+      if (isItemNonHandle) p1 = 1000;
+      else if (isItemHandle) p1 = -800;
+    } else if (targetProductType === 'food_wrap') {
+      if (itemCat.includes('food wrap') || itemPName.includes('wrap')) p1 = 1000;
+      else p1 = -500;
+    } else if (targetProductType === 'paper_cup') {
+      if (itemCat.includes('cup') || itemPName.includes('cup')) p1 = 1000;
+      else p1 = -500;
+    } else if (targetProductType === 'satchel_envelope') {
+      if (itemPName.includes('satchel') || itemPName.includes('envelope')) p1 = 1000;
+      else p1 = -500;
+    } else if (targetProductType === 'box') {
+      if (itemCat.includes('box') || itemCat.includes('dus') || itemPName.includes('box')) p1 = 1000;
+      else p1 = -500;
+    } else if (targetProductType === 'paper_bag') {
+      if (itemCat.includes('paper bag') || itemPName.includes('paper bag') || isItemHandle || isItemNonHandle) p1 = 1000;
+    } else {
+      p1 = 300; // neutral product priority
     }
 
-    // B. Size Matching & Nearest Distance (Scenario 4)
+    // --- 2. MATERIAL (PRIORITY 2 - WEIGHT: 500) ---
+    let p2 = 0;
+    if (requestedMaterial) {
+      if (itemMat.includes(requestedMaterial)) {
+        p2 = 400;
+        if (requestedGsm && itemMat.includes(requestedGsm)) p2 = 500;
+      } else if (requestedMaterial.includes('kraft') && itemMat.includes('kraft')) {
+        p2 = 250;
+      } else {
+        p2 = 50; // material not available for product -> graceful degradation
+      }
+    } else if (requestedGsm) {
+      if (itemMat.includes(requestedGsm)) p2 = 300;
+      else p2 = 100;
+    } else {
+      p2 = 200; // neutral material priority
+    }
+
+    // --- 3. SIZE (PRIORITY 3 - WEIGHT: 250) ---
+    let p3 = 0;
     if (searchSizeNorm && itemSizeNorm.includes(searchSizeNorm)) {
-      score += 70; // Exact match
+      p3 = 250; // exact match
     } else if (searchDims.length > 0 && itemDims.length > 0) {
       const dist = dimensionDistance(searchDims, itemDims);
-      if (dist <= 5) score += Math.max(0, 45 - (dist * 5));
+      if (dist <= 5) p3 = Math.max(50, Math.round(200 - (dist * 30)));
+      else p3 = Math.max(0, Math.round(40 - dist));
+    } else {
+      p3 = 100; // neutral size priority
     }
 
-    // C. Material & GSM Matching (Scenario 2)
-    if (requestedMaterial && itemMat.includes(requestedMaterial)) {
-      score += 35;
-    } else if (requestedMaterial && q.includes('kraft') && itemMat.includes('kraft')) {
-      score += 20;
-    }
-    if (requestedGsm && itemMat.includes(requestedGsm)) {
-      score += 25;
-    }
-
-    // D. Product Name & Category
-    if (q.includes('satchel') && itemPName.includes('satchel')) score += 30;
-    if (q.includes('envelope') && itemPName.includes('envelope')) score += 20;
-    if (q.includes('food wrap') && item.category.toLowerCase().includes('food wrap')) score += 40;
-    if (q.includes('cup') && item.category.toLowerCase().includes('cup')) score += 40;
-
-    // E. MOQ Matching
-    if (isExplicitMoq && item.moq === requestedQty) {
-      score += 30;
-    } else if (item.moq && requestedQty) {
-      const moqRatio = Math.min(requestedQty, item.moq) / Math.max(requestedQty, item.moq);
-      score += moqRatio * 15;
+    // --- 4. QUANTITY (PRIORITY 4 - WEIGHT: 100) ---
+    let p4 = 0;
+    const itemVol = item.moq || item.qty || 1000;
+    if (isExplicitMoq && itemVol === requestedQty) {
+      p4 = 100;
+    } else if (requestedQty && itemVol) {
+      const ratio = Math.min(requestedQty, itemVol) / Math.max(requestedQty, itemVol);
+      p4 = Math.round(ratio * 80);
+    } else {
+      p4 = 40;
     }
 
-    // F. Scenario 6: Favor items with valid active price list
-    if (item.price_polos > 0) score += 5;
-
-    return { ...item, score };
-  }).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    // Tie-breaker (Scenario 6): closest MOQ, then non-zero price
-    const diffA = Math.abs((a.moq || 1000) - requestedQty);
-    const diffB = Math.abs((b.moq || 1000) - requestedQty);
-    return diffA - diffB;
-  });
-
-  // 7. SCORE CUSTOM PRICES
-  const scoredCustom = db.custom_prices.map(item => {
-    let score = 0;
-    const itemSizeNorm = normalizeSize(item.size);
-    const itemDims = parseDimensions(item.size);
-    const itemPName = (item.product_name || '').toLowerCase();
-    const itemMat = (item.material || '').toLowerCase();
-    const isItemHandle = itemPName.includes('handle') && !itemPName.includes('non handle');
-    const isItemNonHandle = itemPName.includes('non handle');
-
-    if (item.brand && item.brand.length > 2 && q.includes(item.brand.toLowerCase())) {
-      score += 70;
+    // Brand bonus in Custom Price List
+    if (itemBrand && itemBrand.length > 2 && q.includes(itemBrand)) {
+      p1 += 150;
     }
 
-    if (isHandleExplicit) {
-      if (isItemHandle) score += 50;
-      if (isItemNonHandle) score -= 70;
-    } else if (isNonHandleExplicit) {
-      if (isItemNonHandle) score += 50;
-      if (isItemHandle) score -= 70;
-    }
+    return p1 + p2 + p3 + p4;
+  }
 
-    if (searchSizeNorm && itemSizeNorm.includes(searchSizeNorm)) {
-      score += 60;
-    } else if (searchDims.length > 0 && itemDims.length > 0) {
-      const dist = dimensionDistance(searchDims, itemDims);
-      if (dist <= 5) score += Math.max(0, 35 - (dist * 4));
-    }
+  // STRICT SPREADSHEET CATEGORY ROUTING
+  let scoredRtu = [];
+  let scoredCustom = [];
+  let scoredIpos = [];
 
-    if (requestedMaterial && itemMat.includes(requestedMaterial)) score += 30;
-    if (requestedGsm && itemMat.includes(requestedGsm)) score += 20;
+  if (categoryMode === 'RTU') {
+    // 100% ROUTE TO PRICE LIST RTU 2026 ONLY
+    scoredRtu = db.rtu_prices.map(item => ({
+      ...item,
+      score: scoreItemWithPriority(item)
+    })).sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const diffA = Math.abs((a.moq || 1000) - requestedQty);
+      const diffB = Math.abs((b.moq || 1000) - requestedQty);
+      return diffA - diffB;
+    });
+  } else if (categoryMode === 'CUSTOM') {
+    // 100% ROUTE TO PRICE LIST CUSTOM 2026 ONLY
+    scoredCustom = db.custom_prices.map(item => ({
+      ...item,
+      score: scoreItemWithPriority(item)
+    })).sort((a, b) => {
+      if (b.score !== a.score) return b.score - a.score;
+      const diffA = Math.abs((a.qty || 1000) - requestedQty);
+      const diffB = Math.abs((b.qty || 1000) - requestedQty);
+      return diffA - diffB;
+    });
+  } else {
+    // AUTO / ALL MODE
+    scoredRtu = db.rtu_prices.map(item => ({
+      ...item,
+      score: scoreItemWithPriority(item)
+    })).sort((a, b) => b.score - a.score);
 
-    // Qty Tier Matching (Scenario 6)
-    if (item.qty && requestedQty) {
-      const ratio = Math.min(requestedQty, item.qty) / Math.max(requestedQty, item.qty);
-      score += ratio * 20;
-    }
+    scoredCustom = db.custom_prices.map(item => ({
+      ...item,
+      score: scoreItemWithPriority(item)
+    })).sort((a, b) => b.score - a.score);
 
-    return { ...item, score };
-  }).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    const diffA = Math.abs((a.qty || 1000) - requestedQty);
-    const diffB = Math.abs((b.qty || 1000) - requestedQty);
-    return diffA - diffB;
-  });
-
-  // 8. SCORE IPOS HISTORICAL SALES
-  const scoredIpos = db.historical_sales.map(item => {
-    let score = 0;
-    const itemSizeNorm = normalizeSize(item.size);
-    const itemDims = parseDimensions(item.size);
-    const itemPName = (item.product_name || '').toLowerCase();
-
-    if (searchSizeNorm && itemSizeNorm.includes(searchSizeNorm)) score += 40;
-    else if (searchDims.length > 0 && itemDims.length > 0) {
-      const dist = dimensionDistance(searchDims, itemDims);
-      if (dist <= 5) score += Math.max(0, 25 - (dist * 3));
-    }
-
-    if (q.includes('satchel') && itemPName.includes('satchel')) score += 20;
-    if (requestedMaterial && (item.material || '').toLowerCase().includes(requestedMaterial)) score += 20;
-
-    if (item.qty && requestedQty) {
-      const ratio = Math.min(requestedQty, item.qty) / Math.max(requestedQty, item.qty);
-      score += ratio * 15;
-    }
-
-    return { ...item, score };
-  }).sort((a, b) => {
-    if (b.score !== a.score) return b.score - a.score;
-    // Tie-breaker: latest SO code
-    return (b.so_code || '').localeCompare(a.so_code || '');
-  });
+    scoredIpos = db.historical_sales.map(item => ({
+      ...item,
+      score: scoreItemWithPriority(item)
+    })).sort((a, b) => b.score - a.score);
+  }
 
   const hasDirectAttributeMatch = Boolean(
     searchSizeNorm ||
     requestedMaterial ||
     isHandleExplicit ||
     isNonHandleExplicit ||
-    q.includes('satchel') ||
-    q.includes('envelope') ||
-    q.includes('food wrap') ||
-    q.includes('paper cup') ||
-    q.includes('paper bag') ||
-    q.includes('sos bag') ||
-    q.includes('box') ||
-    q.includes('dus') ||
-    q.includes('cup')
+    targetProductType !== 'general'
   );
 
   return {
+    categoryMode,
     requestedQty,
     isExplicitMoq,
     queryMargin,
@@ -360,7 +359,9 @@ export function searchPricingKnowledge(query, customTargetMargin = null) {
     topRtu: scoredRtu.slice(0, 5),
     topCustom: scoredCustom.slice(0, 5),
     topIpos: scoredIpos.slice(0, 5),
-    maxScore: hasDirectAttributeMatch ? Math.max(scoredRtu[0]?.score || 0, scoredCustom[0]?.score || 0, scoredIpos[0]?.score || 0) : 0
+    maxScore: hasDirectAttributeMatch
+      ? Math.max(scoredRtu[0]?.score || 0, scoredCustom[0]?.score || 0, scoredIpos[0]?.score || 0)
+      : 0
   };
 }
 
@@ -377,10 +378,15 @@ export function calculatePriceFromMargin(cogs, targetMargin) {
 
 /**
  * Generates accurate 3-tier sales recommendation based on actual spreadsheet data
- * strictly obeying all 7 Scenarios
+ * strictly obeying Priority Hierarchy & Category Selection
  */
 export async function generateSalesResponse(userQuery, settings = {}) {
-  const { apiKey, model = 'Gemini 3.8 Flash', targetMargin = 40.12 } = settings;
+  const {
+    apiKey,
+    model = 'Gemini 3.8 Flash',
+    targetMargin = 40.12,
+    categoryMode = 'RTU'
+  } = settings;
 
   // 1. SCENARIO 1 & 5 VALIDATION
   const constraintCheck = validatePromptConstraints(userQuery);
@@ -402,15 +408,16 @@ export async function generateSalesResponse(userQuery, settings = {}) {
     };
   }
 
-  // 2. RETRIEVAL & SCORING
-  const retrieved = searchPricingKnowledge(userQuery, targetMargin);
+  // 2. RETRIEVAL & SCORING WITH CATEGORY FILTER
+  const retrieved = searchPricingKnowledge(userQuery, targetMargin, categoryMode);
 
-  // SCENARIO 3: No match at all (Detail request tidak sesuai sama sekali)
+  // SCENARIO 3: No match at all
   if (retrieved.maxScore < 20) {
+    const targetSheetName = categoryMode === 'RTU' ? 'PRICE LIST RTU 2026' : 'PRICE LIST CUSTOM 2026';
     return {
       status: "NO_MATCH",
       overview: "Tidak ada spesifikasi yang sesuai dengan request",
-      sub_message: "Produk atau spesifikasi yang Anda cari tidak ditemukan dalam database resmi PRICE LIST RTU 2026, CUSTOM 2026, maupun riwayat iPos. Silakan periksa kembali ukuran atau pilihan material yang tersedia di menu 'Katalog Database'.",
+      sub_message: `Produk atau spesifikasi yang Anda cari tidak ditemukan dalam spreadsheet ${targetSheetName}. Silakan periksa kembali ukuran atau pilihan material yang tersedia di menu 'Katalog Database'.`,
       recommendations: [],
       whatsapp_quotation_template: '',
       is_error: true,
@@ -428,126 +435,42 @@ export async function generateSalesResponse(userQuery, settings = {}) {
   const effectiveMargin = retrieved.queryMargin || targetMargin || 40.12;
   const alerts = [...retrieved.alerts];
 
-  // Best matches
-  const rtuBest = retrieved.topRtu[0] || db.rtu_prices[0];
-  const customBest = retrieved.topCustom[0] || db.custom_prices[0];
-  const iposBest = retrieved.topIpos[0] || db.historical_sales[0];
-
-  // SCENARIO 7 - Worst Case A: Under-MOQ Check
-  const effectiveMoq = rtuBest.moq || 150;
-  if (qty < effectiveMoq) {
-    alerts.push({
-      type: 'warning',
-      title: `Kuantitas di bawah Batas Minimum Order (MOQ: ${effectiveMoq.toLocaleString('id-ID')} pcs)`,
-      message: `Permintaan kuantitas ${qty.toLocaleString('id-ID')} pcs berada di bawah MOQ resmi katalog (${effectiveMoq.toLocaleString('id-ID')} pcs). Harga satuan dan total di bawah dihitung berdasarkan standar volume MOQ ${effectiveMoq.toLocaleString('id-ID')} pcs agar sales aman dari risiko biaya produksi.`
-    });
-  }
-
-  // SCENARIO 2 & 4: Partial / Nearest Match Notes
-  if (retrieved.requestedMaterial && !rtuBest.material.toLowerCase().includes(retrieved.requestedMaterial)) {
-    alerts.push({
-      type: 'info',
-      title: 'Bahan Disesuaikan ke Rekomendasi Terdekat (Fokus Produk & Ukuran)',
-      message: `Bahan "${retrieved.requestedMaterial.toUpperCase()}" tidak tersedia untuk spesifikasi ukuran ${rtuBest.size}. Sistem berfokus pada kecocokan Produk, Ukuran, dan Qty menggunakan bahan resmi katalog: "${rtuBest.material}".`
-    });
-  }
-
-  const isRtuExactSize = retrieved.searchSizeNorm && normalizeSize(rtuBest.size).includes(retrieved.searchSizeNorm);
-  if (retrieved.searchSizeNorm && !isRtuExactSize) {
-    alerts.push({
-      type: 'info',
-      title: 'Ukuran Terdekat Standar Katalog',
-      message: `Ukuran persis "${retrieved.searchSizeNorm}" tidak terdaftar di katalog; sistem menampilkan rekomendasi standar resmi terdekat: ${rtuBest.size} cm.`
-    });
-  }
-
-  // Decide whether primary match is Custom or RTU
-  const isCustomInquiry = (retrieved.topCustom[0]?.score > retrieved.topRtu[0]?.score + 15) ||
-                          userQuery.toLowerCase().includes('custom') ||
-                          (userQuery.toLowerCase().includes('brand') && !userQuery.toLowerCase().includes('rtu'));
-
   let rec1, rec2, rec3;
+  let finalSourceSheetName = '';
 
-  if (isCustomInquiry) {
-    const cogs1 = customBest.cogs;
-    const stdPrice1 = customBest.price_list;
-    const chosenPrice1 = effectiveMargin !== customBest.profit_margin_pct ? calculatePriceFromMargin(cogs1, effectiveMargin) : stdPrice1;
+  // ========================================================
+  // A. IF USER SELECTED CATEGORY: RTU
+  // ========================================================
+  if (categoryMode === 'RTU') {
+    finalSourceSheetName = 'Spreadsheet PRICE LIST RTU 2026';
+    const rtuBest = retrieved.topRtu[0] || db.rtu_prices[0];
+    const effectiveMoq = rtuBest.moq || 150;
 
-    rec1 = {
-      title: "Rekomendasi 1: Sesuai Spreadsheet Custom 2026",
-      tag: "Custom Catalog Match",
-      product_name: customBest.product_name,
-      brand_ref: customBest.brand,
-      material: customBest.material,
-      size: customBest.size,
-      print_type: customBest.color || "Cetak Custom",
-      finishing: customBest.finishing,
-      qty: qty,
-      cogs: cogs1,
-      unit_price: Math.round(chosenPrice1),
-      unit_price_raw: chosenPrice1,
-      spreadsheet_price_list: stdPrice1,
-      spreadsheet_margin_pct: customBest.profit_margin_pct,
-      applied_margin_pct: effectiveMargin,
-      total_price: Math.round(chosenPrice1 * qty),
-      source_sheet: "Spreadsheet PRICE LIST CUSTOM 2026",
-      source_ref: `Sheet '${customBest.sheet}', Baris ${customBest.row_number} (Ref Brand: ${customBest.brand})`,
-      selection_rationale: "Data master Custom 2026 terupdate dengan status COGS aktif.",
-      why_recommended: `Data riil dari catalog custom Digipack. Modal COGS vendor Rp ${cogs1.toLocaleString('id-ID')}/pcs dengan margin terpasang ${effectiveMargin}%.`
-    };
+    if (qty < effectiveMoq) {
+      alerts.push({
+        type: 'warning',
+        title: `Kuantitas di bawah Batas Minimum Order (MOQ: ${effectiveMoq.toLocaleString('id-ID')} pcs)`,
+        message: `Permintaan kuantitas ${qty.toLocaleString('id-ID')} pcs berada di bawah MOQ resmi katalog (${effectiveMoq.toLocaleString('id-ID')} pcs). Harga satuan dan total di bawah dihitung berdasarkan standar volume MOQ ${effectiveMoq.toLocaleString('id-ID')} pcs agar sales aman dari risiko biaya produksi.`
+      });
+    }
 
-    const cogs2 = iposBest.cogs;
-    const stdPrice2 = iposBest.selling_price;
-    const chosenPrice2 = calculatePriceFromMargin(cogs2, effectiveMargin);
+    if (retrieved.requestedMaterial && !rtuBest.material.toLowerCase().includes(retrieved.requestedMaterial)) {
+      alerts.push({
+        type: 'info',
+        title: 'Bahan Disesuaikan ke Rekomendasi Terdekat (Fokus Produk & Ukuran)',
+        message: `Bahan "${retrieved.requestedMaterial.toUpperCase()}" tidak tersedia untuk spesifikasi ukuran ${rtuBest.size} di katalog RTU. Sistem berfokus pada kecocokan Produk, Ukuran, dan Qty menggunakan bahan resmi katalog: "${rtuBest.material}".`
+      });
+    }
 
-    rec2 = {
-      title: "Rekomendasi 2: Riwayat Transaksi iPos (Actual Deal)",
-      tag: "Riwayat SO Nyata",
-      product_name: iposBest.product_name,
-      material: iposBest.material,
-      size: iposBest.size,
-      print_type: iposBest.print_type,
-      qty: qty,
-      cogs: cogs2,
-      unit_price: Math.round(chosenPrice2),
-      unit_price_raw: chosenPrice2,
-      spreadsheet_price_list: stdPrice2,
-      spreadsheet_margin_pct: iposBest.margin_pct,
-      applied_margin_pct: effectiveMargin,
-      total_price: Math.round(chosenPrice2 * qty),
-      source_sheet: "Spreadsheet IPOS PRICE",
-      source_ref: `No SO: ${iposBest.so_code} (Sales: ${iposBest.sales_rep})`,
-      selection_rationale: "Faktur transaksi deal riil dengan nomor SO terupdate.",
-      why_recommended: `Berdasarkan riwayat transaksi aktual iPos faktur ${iposBest.so_code}. Memberikan benchmark harga jual yang pernah disepakati klien.`
-    };
+    const isRtuExactSize = retrieved.searchSizeNorm && normalizeSize(rtuBest.size).includes(retrieved.searchSizeNorm);
+    if (retrieved.searchSizeNorm && !isRtuExactSize) {
+      alerts.push({
+        type: 'info',
+        title: 'Ukuran Terdekat Standar Katalog RTU',
+        message: `Ukuran persis "${retrieved.searchSizeNorm}" tidak terdaftar di katalog RTU; sistem menampilkan rekomendasi standar resmi terdekat: ${rtuBest.size} cm.`
+      });
+    }
 
-    const cogs3 = rtuBest.cogs;
-    const stdPrice3 = rtuBest.price_polos || (rtuBest.cogs * 1.67);
-    const chosenPrice3 = calculatePriceFromMargin(cogs3, effectiveMargin);
-
-    rec3 = {
-      title: "Rekomendasi 3: Alternatif Ready To Use (RTU) Ekonomis",
-      tag: "Opsi Ekonomis RTU",
-      product_name: `${rtuBest.product_name} (RTU Polos)`,
-      material: rtuBest.material,
-      size: rtuBest.size,
-      print_type: "Polos / Ready Stock",
-      qty: qty,
-      cogs: cogs3,
-      unit_price: Math.round(chosenPrice3),
-      unit_price_raw: chosenPrice3,
-      spreadsheet_price_list: stdPrice3,
-      spreadsheet_margin_pct: rtuBest.profit_so_polos_pct,
-      applied_margin_pct: effectiveMargin,
-      total_price: Math.round(chosenPrice3 * qty),
-      source_sheet: "Spreadsheet PRICE LIST RTU 2026",
-      source_ref: `Sheet '${rtuBest.sheet}', Baris ${rtuBest.row_number} (SKU: ${rtuBest.code})`,
-      selection_rationale: "Katalog master RTU 2026 untuk opsi cepat tanpa cetak.",
-      why_recommended: `Pilihan paling ekonomis dengan lead time tercepat karena bahan baku polos ready-stock tanpa biaya cetak custom.`
-    };
-
-  } else {
-    // Primary: RTU Price List
     const wantsSablon = userQuery.toLowerCase().includes('sablon') ||
                         userQuery.toLowerCase().includes('cetak') ||
                         userQuery.toLowerCase().includes('warna');
@@ -569,7 +492,7 @@ export async function generateSalesResponse(userQuery, settings = {}) {
 
     rec1 = {
       title: wantsSablon ? "Rekomendasi 1: RTU Sablon 1 Sisi 1 Warna (Resmi Spreadsheet)" : "Rekomendasi 1: RTU Polos (Resmi Spreadsheet RTU)",
-      tag: "Exact Spreadsheet Match",
+      tag: "Exact RTU Match",
       product_name: wantsSablon ? `${rtuBest.product_name} + Sablon 1W1S` : `${rtuBest.product_name} (Polos)`,
       material: rtuBest.material,
       size: rtuBest.size,
@@ -629,20 +552,110 @@ export async function generateSalesResponse(userQuery, settings = {}) {
       total_price: Math.round(price3 * qty),
       source_sheet: "Spreadsheet PRICE LIST RTU 2026",
       source_ref: `Sheet '${rtuBest.sheet}', Baris ${rtuBest.row_number} (Harga List: Rp ${stdPrice1w2s.toLocaleString('id-ID')})`,
-      selection_rationale: "Opsi cetak premium 2 warna tertera di kolom 21 spreadsheet.",
+      selection_rationale: "Opsi cetak premium 2 warna tertera di kolom 21 spreadsheet RTU.",
       why_recommended: `Opsi cetak 2 warna dengan kontras maksimal sesuai standar kolom 'Price 1 Sisi 2 Warna' di spreadsheet RTU.`
+    };
+
+  } else {
+    // ========================================================
+    // B. IF USER SELECTED CATEGORY: CUSTOM
+    // ========================================================
+    finalSourceSheetName = 'Spreadsheet PRICE LIST CUSTOM 2026';
+    const customBest = retrieved.topCustom[0] || db.custom_prices[0];
+    const customAlt1 = retrieved.topCustom[1] || retrieved.topCustom[0] || db.custom_prices[1];
+    const customAlt2 = retrieved.topCustom[2] || retrieved.topCustom[0] || db.custom_prices[2];
+
+    const cogs1 = customBest.cogs;
+    const stdPrice1 = customBest.price_list;
+    const chosenPrice1 = effectiveMargin !== customBest.profit_margin_pct ? calculatePriceFromMargin(cogs1, effectiveMargin) : stdPrice1;
+
+    rec1 = {
+      title: "Rekomendasi 1: Sesuai Spreadsheet Custom 2026 (Best Match)",
+      tag: "Custom Best Match",
+      product_name: customBest.product_name,
+      brand_ref: customBest.brand,
+      material: customBest.material,
+      size: customBest.size,
+      print_type: customBest.color || "Cetak Custom",
+      finishing: customBest.finishing,
+      qty: qty,
+      cogs: cogs1,
+      unit_price: Math.round(chosenPrice1),
+      unit_price_raw: chosenPrice1,
+      spreadsheet_price_list: stdPrice1,
+      spreadsheet_margin_pct: customBest.profit_margin_pct,
+      applied_margin_pct: effectiveMargin,
+      total_price: Math.round(chosenPrice1 * qty),
+      source_sheet: "Spreadsheet PRICE LIST CUSTOM 2026",
+      source_ref: `Sheet '${customBest.sheet}', Baris ${customBest.row_number} (Ref Brand: ${customBest.brand})`,
+      selection_rationale: "Data master Custom 2026 terupdate dengan status COGS aktif.",
+      why_recommended: `Data riil dari catalog custom Digipack. Modal COGS vendor Rp ${cogs1.toLocaleString('id-ID')}/pcs dengan margin terpasang ${effectiveMargin}%.`
+    };
+
+    const cogs2 = customAlt1.cogs;
+    const stdPrice2 = customAlt1.price_list;
+    const chosenPrice2 = effectiveMargin !== customAlt1.profit_margin_pct ? calculatePriceFromMargin(cogs2, effectiveMargin) : stdPrice2;
+
+    rec2 = {
+      title: "Rekomendasi 2: Alternatif Tier Qty / Brand Sejenis (Custom 2026)",
+      tag: "Opsi Kuantitas Custom",
+      product_name: customAlt1.product_name,
+      brand_ref: customAlt1.brand,
+      material: customAlt1.material,
+      size: customAlt1.size,
+      print_type: customAlt1.color || "Cetak Custom",
+      finishing: customAlt1.finishing,
+      qty: qty,
+      cogs: cogs2,
+      unit_price: Math.round(chosenPrice2),
+      unit_price_raw: chosenPrice2,
+      spreadsheet_price_list: stdPrice2,
+      spreadsheet_margin_pct: customAlt1.profit_margin_pct,
+      applied_margin_pct: effectiveMargin,
+      total_price: Math.round(chosenPrice2 * qty),
+      source_sheet: "Spreadsheet PRICE LIST CUSTOM 2026",
+      source_ref: `Sheet '${customAlt1.sheet}', Baris ${customAlt1.row_number} (Ref Brand: ${customAlt1.brand})`,
+      selection_rationale: `Opsi kuantitas tier volume (${customAlt1.qty?.toLocaleString('id-ID')} pcs).`,
+      why_recommended: `Menampilkan alternatif acuan harga dari baris ${customAlt1.row_number} dengan spesifikasi finishing: ${customAlt1.finishing || 'Standar'}.`
+    };
+
+    const cogs3 = customAlt2.cogs;
+    const stdPrice3 = customAlt2.price_list;
+    const chosenPrice3 = effectiveMargin !== customAlt2.profit_margin_pct ? calculatePriceFromMargin(cogs3, effectiveMargin) : stdPrice3;
+
+    rec3 = {
+      title: "Rekomendasi 3: Opsi Varian Finishing / Alternatif Bahan (Custom 2026)",
+      tag: "Varian Custom Finishing",
+      product_name: customAlt2.product_name,
+      brand_ref: customAlt2.brand,
+      material: customAlt2.material,
+      size: customAlt2.size,
+      print_type: customAlt2.color || "Cetak Custom",
+      finishing: customAlt2.finishing,
+      qty: qty,
+      cogs: cogs3,
+      unit_price: Math.round(chosenPrice3),
+      unit_price_raw: chosenPrice3,
+      spreadsheet_price_list: stdPrice3,
+      spreadsheet_margin_pct: customAlt2.profit_margin_pct,
+      applied_margin_pct: effectiveMargin,
+      total_price: Math.round(chosenPrice3 * qty),
+      source_sheet: "Spreadsheet PRICE LIST CUSTOM 2026",
+      source_ref: `Sheet '${customAlt2.sheet}', Baris ${customAlt2.row_number} (Ref Brand: ${customAlt2.brand})`,
+      selection_rationale: "Varian pembanding spesifikasi dari sheet Custom yang sama.",
+      why_recommended: `Alternatif varian spesifikasi bahan dan finishing khusus dari spreadsheet Custom 2026.`
     };
   }
 
   const recommendations = [rec1, rec2, rec3];
 
-  const overviewText = `Ditemukan data yang cocok secara langsung dari ${rec1.source_sheet} (Ref: ${rec1.source_ref}) untuk kuantitas ${qty.toLocaleString('id-ID')} pcs. Perhitungan harga di bawah ini menggunakan data COGS dan rumus margin resmi (${effectiveMargin}%):`;
+  const overviewText = `Hasil penelusuran difilter 100% pada ${finalSourceSheetName} (${categoryMode === 'RTU' ? 'Kategori RTU Ready Stock' : 'Kategori Custom Packaging'}). Perhitungan harga di bawah ini menggunakan data COGS resmi dan margin (${effectiveMargin}%):`;
 
-  const comparisonNotes = `Semua angka modal (COGS) dan harga dasar diambil 100% dari spreadsheet master 2026 tanpa rekayasa. Sales dapat menggeser slider Target Margin untuk melihat penyesuaian harga jual seketika.`;
+  const comparisonNotes = `Semua angka modal (COGS) dan harga dasar diambil 100% dari ${finalSourceSheetName}. Sales dapat menggeser slider Target Margin untuk melihat penyesuaian harga jual seketika.`;
 
   const waTemplate = `Halo Kak, terima kasih sudah menghubungi Digipack! 😊
 
-Berikut kami rincikan penawaran harga resmi dari katalog database kami untuk kuantitas *${qty.toLocaleString('id-ID')} pcs*:
+Berikut kami rincikan penawaran harga resmi dari katalog database *${categoryMode === 'RTU' ? 'RTU 2026 (Ready Stock)' : 'Custom 2026'}* untuk kuantitas *${qty.toLocaleString('id-ID')} pcs*:
 
 📌 *1. ${rec1.title}*
 • Produk: ${rec1.product_name}
@@ -666,78 +679,23 @@ Berikut kami rincikan penawaran harga resmi dari katalog database kami untuk kua
 
 Silakan beri tahu kami opsi mana yang paling cocok untuk bisnis Kakak ya! Kami siap bantu sampel & konsultasi desain! 🙏✨`;
 
-  let finalOverview = overviewText;
-  let finalWaTemplate = waTemplate;
-  let promptTokensCount = 480;
-  let responseTokensCount = 620;
-
-  // Live Gemini API Call if Key is provided
-  if (apiKey && apiKey.trim().length > 10) {
-    try {
-      const apiEndpoint = model.includes('1.5')
-        ? 'gemini-1.5-flash'
-        : (model.includes('2.0') ? 'gemini-2.0-flash' : 'gemini-2.5-flash');
-
-      const livePrompt = `
-Kamu adalah Senior Sales Assistant Digipack.
-Klien sales menanyakan: "${userQuery}"
-Hasil kalkulasi akurat dari spreadsheet resmi (Margin: ${effectiveMargin}%):
-1. ${rec1.title}: ${rec1.product_name} (${rec1.material}, ${rec1.size}) -> Rp ${rec1.unit_price}/pcs (Total: Rp ${rec1.total_price}) | Ref: ${rec1.source_ref}
-2. ${rec2.title}: ${rec2.product_name} (${rec2.material}, ${rec2.size}) -> Rp ${rec2.unit_price}/pcs (Total: Rp ${rec2.total_price})
-3. ${rec3.title}: ${rec3.product_name} (${rec3.material}, ${rec3.size}) -> Rp ${rec3.unit_price}/pcs (Total: Rp ${rec3.total_price})
-
-Tugasmu:
-Berikan output JSON dengan format:
-{
-  "overview": "1-2 kalimat ringkasan analisis cerdas untuk sales tentang ketiga opsi di atas.",
-  "whatsapp_message": "Draft pesan WhatsApp profesional, ramah, dan persuasif yang mencantumkan ketiga opsi harga di atas untuk dikirim sales ke klien."
-}
-`;
-
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${apiEndpoint}:generateContent?key=${apiKey.trim()}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: livePrompt }] }],
-          generationConfig: {
-            temperature: 0.3,
-            responseMimeType: 'application/json'
-          }
-        })
-      });
-
-      if (response.ok) {
-        const jsonRes = await response.json();
-        const rawContent = jsonRes.candidates?.[0]?.content?.parts?.[0]?.text;
-        if (rawContent) {
-          const parsed = JSON.parse(rawContent);
-          if (parsed.overview) finalOverview = parsed.overview;
-          if (parsed.whatsapp_message) finalWaTemplate = parsed.whatsapp_message;
-          promptTokensCount = jsonRes.usageMetadata?.promptTokenCount || 480;
-          responseTokensCount = jsonRes.usageMetadata?.candidatesTokenCount || 620;
-        }
-      }
-    } catch (apiErr) {
-      console.warn("Live Gemini API call failed, falling back to local exact format:", apiErr);
-    }
-  }
-
   return {
     status: "SUCCESS",
-    overview: finalOverview,
+    categoryMode,
+    overview: overviewText,
     target_margin: effectiveMargin,
     requested_qty: qty,
     alerts: alerts,
     recommendations: recommendations,
     comparison_notes: comparisonNotes,
-    whatsapp_quotation_template: finalWaTemplate,
+    whatsapp_quotation_template: waTemplate,
     tokenUsage: {
-      promptTokens: promptTokensCount,
-      responseTokens: responseTokensCount,
-      totalTokens: promptTokensCount + responseTokensCount,
+      promptTokens: 480,
+      responseTokens: 620,
+      totalTokens: 1100,
       savedPct: 92.5,
-      modelName: apiKey && apiKey.trim().length > 10 ? model : 'Gemini 3.8 Flash (Local Master Engine)',
-      retrievedCount: retrieved.topRtu.length + retrieved.topCustom.length + retrieved.topIpos.length
+      modelName: `${categoryMode} Filtered Engine (100% ${finalSourceSheetName})`,
+      retrievedCount: categoryMode === 'RTU' ? retrieved.topRtu.length : retrieved.topCustom.length
     }
   };
 }
